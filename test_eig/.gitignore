@@ -1,0 +1,6 @@
+test_wave
+*.o
+CMakeCache.txt
+CMakeFiles
+Makefile
+*.cmake
