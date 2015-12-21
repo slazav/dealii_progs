@@ -20,7 +20,7 @@
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
-#include <deal.II/numerics/data_out.h>
+#include "data_out_sym.h"
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/lac/constraint_matrix.h>
@@ -54,7 +54,7 @@ class PolarSolver {
 
   // save the grid and a data vector in a eps file
   void save_grid(const char* fname);
-  void save_data(const char* fname, const Vector<double> & data);
+  void save_data(const char* fname, const Vector<double> & data, int var=0);
 
   // Do the texture calculations.
   // repeat=true shows that texture didn't change after the last calculation
@@ -236,21 +236,24 @@ PolarSolver::save_grid(const char* fname){
   grid_out.write_eps(triang,out);
 }
 void
-PolarSolver::save_data(const char* fname, const Vector<double> & data){
+PolarSolver::save_data(const char* fname, const Vector<double> & data, int var){
   DataOutBase::EpsFlags eps_flags;
 
-  eps_flags.z_scaling = 1./data.linfty_norm();
-  eps_flags.draw_mesh = false;
-  eps_flags.azimut_angle = 40;
-  eps_flags.turn_angle   = 130;
 
-  DataOut<dim> data_out;
+  eps_flags.z_scaling = 2./data.linfty_norm();
+//  eps_flags.draw_mesh = false;
+  eps_flags.azimut_angle = 60;
+  eps_flags.turn_angle   = 140;
+  eps_flags.line_width   = 0.1;
+  if (var>0) eps_flags.color_function = &sym_color_function;
+
+  DataOutSym data_out;
   data_out.set_flags(eps_flags);
 
   data_out.attach_dof_handler(dofs);
   data_out.add_data_vector(data, "data");
 
-  data_out.build_patches();
+  data_out.build_patches(0, var);
 
   std::ofstream out(fname);
   data_out.write_eps(out);
@@ -534,7 +537,7 @@ double
 calc(double Lx, double Ly, double R){
   try {
 
-    double grid_acc = 1e-3;
+//    double grid_acc = 1e-2;
 //    double text_acc = 1e-2;
 
     deallog.depth_console(0);
@@ -546,7 +549,8 @@ calc(double Lx, double Ly, double R){
 
     // loop for solving the texture equation and grid refinement
     double err=1;
-    while (err>grid_acc){
+//    while (err>grid_acc){
+    for (int i=0;i<5; i++) {
       err = ps.refine_grid(0.3, 0.03);
       ps.do_text_calc();
     }
@@ -558,10 +562,10 @@ calc(double Lx, double Ly, double R){
       ps.do_text_calc(false);
       //std::cout << ps.check_text() << "\n";
     }
-    ps.save_data("text1.eps", ps.texture);
+    ps.save_data("text1.eps", ps.texture, 1);
 
     ps.do_wave_calc();
-    ps.save_data("wave1.eps", ps.wave);
+    ps.save_data("wave1.eps", ps.wave, 0);
     return ps.en;
   }
   catch(std::exception &exc) {
@@ -581,7 +585,7 @@ int main(){
 //  static const double DD[] = {0.20, 0.24, 0.28, 0.32, 0.36, 0.40, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
 //                              1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0, 4.0, 8.00, 16.00, 20.00};
 
-  static const double DD[] = {3.00};
+  static const double DD[] = {3.50};
 
   std::vector<double> D(DD, DD + sizeof(DD)/sizeof(DD[0]));
   std::vector<double> E;
