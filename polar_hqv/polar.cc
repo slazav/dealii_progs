@@ -60,11 +60,15 @@ class PolarSolver {
   // repeat=true shows that texture didn't change after the last calculation
   void do_text_calc(bool repeat=false);
 
+  // Do the wave calculation.
+  void do_wave_calc();
+
+
   // calculate texture accuracy by integrating (nabla^2 a - sin(2a)/2)^2
   double check_text();
 
-  // Do the wave calculation.
-  void do_wave_calc();
+  // Calculate wave integrals.
+  double calc_amp();
 
   // Setup boundary IDs. Used in make_initial_grid() and refine_grid().
   void setup_boundary_ids();
@@ -346,7 +350,7 @@ PolarSolver::do_text_calc(bool repeat){
 
 
   // print some information about the cell and dof
-  std::cout << "  texture calculation: "
+  std::cerr << "  texture calculation: "
             << "  act.cells: " << std::setw(4) << triang.n_active_cells()
             << "  DOFs: " << std::setw(4) << dofs.n_dofs();
 
@@ -362,7 +366,7 @@ PolarSolver::do_text_calc(bool repeat){
     constraints.distribute(texture);
   }
 
-  std::cout << "  done" << std::endl;
+  std::cerr << "  done" << std::endl;
 
 }
 
@@ -406,6 +410,43 @@ PolarSolver::check_text(){
     std::cerr << "\n";
   }
   return sqrt(I1);
+}
+
+/*************************************************************************/
+// Calculate wave amplitude.
+double
+PolarSolver::calc_amp(){
+
+  const QGauss<dim>  quadrature_formula(3);
+  FEValues<dim> fe_values(fe, quadrature_formula,
+              update_values | update_gradients | update_hessians |
+              update_quadrature_points | update_JxW_values);
+
+  const unsigned int   nq = quadrature_formula.size();
+
+  // texture in the cell's quadrature points
+  // same for laplacian
+  std::vector<double> cell_text(nq), cell_wave(nq);
+
+  double I0=0, I1=0, I2=0; // integrals
+  typename DoFHandler<dim>::active_cell_iterator cell;
+  for (cell= dofs.begin_active(); cell!=dofs.end(); ++cell) {
+    fe_values.reinit(cell);
+    fe_values.get_function_values(texture, cell_text);
+    fe_values.get_function_values(wave, cell_wave);
+    for (unsigned int q=0; q<nq; ++q){
+      double wr = 2*cell_wave[q] * cos(-cell_text[q])
+                + 2*cell_wave[q] * cos(-M_PI+cell_text[q]);
+      double wi = 2*cell_wave[q] * sin(-cell_text[q])
+                + 2*cell_wave[q] * sin(-M_PI+cell_text[q]);
+
+      I0 += 4*cell_wave[q]*cell_wave[q]*fe_values.JxW(q);
+      I1 += wr*fe_values.JxW(q);
+      I2 += wi*fe_values.JxW(q);
+    }
+    std::cerr << "\n";
+  }
+  return (I1*I1 + I2*I2)/I0/(2*R);
 }
 
 
@@ -520,7 +561,7 @@ PolarSolver::do_wave_calc(){
     data.use_residual = false;
     EigenInverseM<> solver(solver_control,mem,data);
     solver.solve(en, A, M, wave);
-    std::cout << "En: " << en << "\n";
+    std::cerr << "En: " << en << "\n";
 
     constraints.distribute(wave);
   }
@@ -550,18 +591,22 @@ calc(double Lx, double Ly, double R){
       err = ps.refine_grid(0.3, 0.03);
       ps.do_text_calc();
     }
-    std::cout << "grid accuracy after refinment: " << err << "\n";
+    std::cerr << "grid accuracy after refinment: " << err << "\n";
     ps.save_grid("grid2.eps");
 
     // without grid refining
     for (int i=0; i<3; i++){
       ps.do_text_calc(false);
-      //std::cout << ps.check_text() << "\n";
+      //std::cerrt << ps.check_text() << "\n";
     }
     ps.save_data("text1.eps", ps.texture);
 
     ps.do_wave_calc();
     ps.save_data("wave1.eps", ps.wave);
+
+    double amp = ps.calc_amp();
+    printf("%5.2f %5.2f %5.2f  %6.4f %6.4f\n", 2*Lx, 2*Ly, 2*R, ps.en, amp);
+
     return ps.en;
   }
   catch(std::exception &exc) {
@@ -578,23 +623,23 @@ calc(double Lx, double Ly, double R){
 }
 
 int main(){
-//  static const double DD[] = {0.20, 0.24, 0.28, 0.32, 0.36, 0.40, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
-//                              1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0, 4.0, 8.00, 16.00, 20.00};
+  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
+                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25};
 
-  static const double DD[] = {3.00};
+//  static const double DD[] = {3.00};
 
   std::vector<double> D(DD, DD + sizeof(DD)/sizeof(DD[0]));
   std::vector<double> E;
   std::vector<double>::iterator i;
   for (i=D.begin(); i!=D.end(); i++){
     double R = (*i)/2.0;
-    double Lx=4;
-    double Ly=4;
+    double Lx=20;
+    double Ly=20;
     E.push_back(calc(Lx, Ly, R));
   }
 
-  for (unsigned int i=0; i<D.size(); i++){
-    printf("%5.2f %6.4f\n", D[i], -E[i]);
-  }
+//  for (unsigned int i=0; i<D.size(); i++){
+//    printf("%5.2f %6.4f\n", D[i], -E[i]);
+//  }
   return 0;
 }
