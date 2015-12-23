@@ -2,6 +2,10 @@
 //- use a mass matrix
 //- use SolverCG instead of SolverGMRES solver
 
+// See http://www.sciencedirect.com/science/article/pii/S0024379505005756
+// for this simple algorithm and also more complicated inexact method
+// which is not implemented here.
+
 #ifndef eigen_inverse_m_h
 #define eigen_inverse_m_h
 
