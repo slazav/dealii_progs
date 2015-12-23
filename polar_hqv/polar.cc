@@ -89,14 +89,14 @@ class PolarSolver {
     SparseMatrix<double> A,M;
     Vector<double>       B;
 
-    bool wave_zero_bc;
+    bool ZBC; // zero BC
     bool wave_nopot;
 };
 
 PolarSolver::PolarSolver(
      const double Lx_, const double Ly_, const double R_):
      dofs(triang), fe(2), Lx(Lx_), Ly(Ly_), R(R_) {
-  wave_zero_bc = false;
+  ZBC = true;
   wave_nopot = false;
 }
 
@@ -107,9 +107,10 @@ PolarSolver::~PolarSolver() {
 
 /*************************************************************************/
 // reset boundary IDs:
-// 1: x=0
-// 2: y=0, x<R
-// 3: other
+// 1: x=0 -- symmetry plane,         a'=0,  w'=0
+// 2: y=0, x<R   -- between vortices a=pi/2 w'=0
+// 3: y=0, x>=R  -- outside vortices a=0    w=0
+// 0: edges                          a=0 w=0 or a'=0 w'=0
 void
 PolarSolver::setup_boundary_ids(){
   typename Triangulation<dim>::cell_iterator
@@ -119,21 +120,25 @@ PolarSolver::setup_boundary_ids(){
     for (unsigned int i=0; i<GeometryInfo<dim>::faces_per_cell; i++){
       if (cell->face(i)->boundary_id() ==
           numbers::internal_face_boundary_id) continue;
-
+      double xc = cell->face(i)->center()(0),
+             yc = cell->face(i)->center()(1);
       if (R<Lx){ // finite soliton
-        if (std::fabs(cell->face(i)->center()(0)) < 1e-12)
+        if (std::fabs(xc) < 1e-12)
           cell->face(i)->set_boundary_id(1);
-        else if (std::fabs(cell->face(i)->center()(0)) < R &&
-                 std::fabs(cell->face(i)->center()(1)) < 1e-12)
+        else if (std::fabs(xc) < R &&
+                 std::fabs(yc) < 1e-12)
           cell->face(i)->set_boundary_id(2);
+        else if (std::fabs(xc) >= R &&
+                 std::fabs(yc) < 1e-12)
+          cell->face(i)->set_boundary_id(3);
         else
           cell->face(i)->set_boundary_id(0);
       }
       else { // infinite soliton
-        if (std::fabs(cell->face(i)->center()(0)) < 1e-12 ||
-            std::fabs(cell->face(i)->center()(0) - Lx) < 1e-12)
+        if (std::fabs(xc) < 1e-12 ||
+            std::fabs(xc - Lx) < 1e-12)
           cell->face(i)->set_boundary_id(1);
-        else if (std::fabs(cell->face(i)->center()(1)) < 1e-12)
+        else if (std::fabs(yc) < 1e-12)
           cell->face(i)->set_boundary_id(2);
         else
           cell->face(i)->set_boundary_id(0);
@@ -274,8 +279,11 @@ PolarSolver::do_text_calc(bool repeat){
     // set text constraints
     constraints.clear();
     DoFTools::make_hanging_node_constraints(dofs, constraints);
+    if (ZBC)
+      VectorTools::interpolate_boundary_values(
+          dofs, 0, ZeroFunction<dim>(), constraints);
     VectorTools::interpolate_boundary_values(
-        dofs, 0, ZeroFunction<dim>(), constraints);
+        dofs, 3, ZeroFunction<dim>(), constraints);
     VectorTools::interpolate_boundary_values(
         dofs, 2, ConstantFunction<dim>(0.5*M_PI), constraints);
     constraints.close();
@@ -360,7 +368,7 @@ PolarSolver::do_text_calc(bool repeat){
 
   // solve the system
   {
-    SolverControl      solver_control(1000, 1e-12);
+    SolverControl      solver_control(10000, 1e-12);
     SolverCG<>         solver(solver_control);
 
     PreconditionSSOR<> preconditioner;
@@ -449,7 +457,7 @@ PolarSolver::calc_amp(){
     }
     std::cerr << "\n";
   }
-  return (I1*I1 + I2*I2)/I0/(2*R);
+  return (I1*I1 + I2*I2)/I0/(2*std::min(R, Lx));
 }
 
 
@@ -461,14 +469,11 @@ PolarSolver::do_wave_calc(){
   // set wave constraints
   constraints.clear();
   DoFTools::make_hanging_node_constraints(dofs, constraints);
+  if (ZBC)
+    VectorTools::interpolate_boundary_values(
+        dofs, 0, ZeroFunction<dim>(), constraints);
   VectorTools::interpolate_boundary_values(
-      dofs, 0, ZeroFunction<dim>(), constraints);
-  if (wave_zero_bc){ // zero BC everywhere - for test
-    VectorTools::interpolate_boundary_values(
-        dofs, 1, ZeroFunction<dim>(), constraints);
-    VectorTools::interpolate_boundary_values(
-        dofs, 2, ZeroFunction<dim>(), constraints);
-  }
+    dofs, 3, ZeroFunction<dim>(), constraints);
   constraints.close();
 
   // init the wave vector
@@ -557,7 +562,7 @@ PolarSolver::do_wave_calc(){
     en=-1;
     for (unsigned int i = 0; i<wave.size(); i++) wave[i]=1;
 
-    SolverControl solver_control(1000, 1e-6);
+    SolverControl solver_control(10000, 1e-6);
     GrowingVectorMemory<> mem;
     EigenInverseM<>::AdditionalData data;
     data.relaxation = 0.1;
@@ -591,7 +596,7 @@ calc(double Lx, double Ly, double R){
     // loop for solving the texture equation and grid refinement
     double err=1;
 //    while (err>grid_acc){
-    for (int i=0;i<5; i++) {
+    for (int i=0;i<6; i++) {
       err = ps.refine_grid(0.3, 0.03);
       ps.do_text_calc();
     }
@@ -627,18 +632,26 @@ calc(double Lx, double Ly, double R){
 }
 
 int main(){
-  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
-                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25};
 
-  //static const double DD[] = {3.50};
+//  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
+//                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10,
+//                              12, 16, 20, 25};
+//  static const double DD[] = {1.75, 2.25, 2.75, 3.25};
+
+  static const double DD[] = {8};
 
   std::vector<double> D(DD, DD + sizeof(DD)/sizeof(DD[0]));
   std::vector<double> E;
   std::vector<double>::iterator i;
   for (i=D.begin(); i!=D.end(); i++){
     double R = (*i)/2.0;
-    double Lx=20;
-    double Ly=20;
+    double Lx=2*R;
+    double Ly=R;
+
+//    double R =  (*i)/2.0;
+//    double Lx = (*i)/2.0;
+//    double Ly= (*i)/2.0;
+
     E.push_back(calc(Lx, Ly, R));
   }
 
