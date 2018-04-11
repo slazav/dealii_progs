@@ -41,6 +41,15 @@ using namespace dealii;
 /*************************************************************************/
 /*************************************************************************/
 class PolarSolver {
+  enum BCType {
+    HQV_PAIR_ZBC,
+    HQV_PAIR_NBC,
+    SQV_PAIR_ZBC,
+    SQV_PAIR_NBC,
+    SQV_CHAIN_ZBC,
+    SQV_CHAIN_NBC
+  } bctype;
+
   public:
     PolarSolver(const double Lx, const double Ly, const double R);
     ~PolarSolver();
@@ -85,18 +94,16 @@ class PolarSolver {
     SparsityPattern      sparsity;
     double Lx, Ly, R;
 
-
     SparseMatrix<double> A,M;
     Vector<double>       B;
 
-    bool ZBC; // zero BC
-    bool wave_nopot;
+    bool wave_nopot;  // test mode -- no potential for the wave
 };
 
 PolarSolver::PolarSolver(
      const double Lx_, const double Ly_, const double R_):
      dofs(triang), fe(2), Lx(Lx_), Ly(Ly_), R(R_) {
-  ZBC = true;
+  bctype=SQV_PAIR_NBC;
   wave_nopot = false;
 }
 
@@ -110,7 +117,8 @@ PolarSolver::~PolarSolver() {
 // 1: x=0 -- symmetry plane,         a'=0,  w'=0
 // 2: y=0, x<R   -- between vortices a=pi/2 w'=0
 // 3: y=0, x>=R  -- outside vortices a=0    w=0
-// 0: edges                          a=0 w=0 or a'=0 w'=0
+// 4: x=Lx edge                      a=0 w=0 or a'=0 w'=0
+// 0: y=Ly edge                      a=0 w=0 or a'=0 w'=0
 void
 PolarSolver::setup_boundary_ids(){
   typename Triangulation<dim>::cell_iterator
@@ -131,6 +139,8 @@ PolarSolver::setup_boundary_ids(){
         else if (std::fabs(xc) >= R &&
                  std::fabs(yc) < 1e-12)
           cell->face(i)->set_boundary_id(3);
+        else if (std::fabs(xc - Lx) < 1e-12)
+          cell->face(i)->set_boundary_id(4);
         else
           cell->face(i)->set_boundary_id(0);
       }
@@ -262,7 +272,12 @@ PolarSolver::save_data(const char* fname, const Vector<double> & data, int var){
   data_out.attach_dof_handler(dofs);
   data_out.add_data_vector(data, "data");
 
-  data_out.build_patches(0, var);
+  double xsh=2*M_PI;
+  if (bctype==HQV_PAIR_ZBC || bctype==HQV_PAIR_NBC ||
+      bctype==SQV_CHAIN_ZBC || bctype==SQV_CHAIN_NBC) xsh=M_PI;
+
+  if (var==0) data_out.build_patches(0);
+  else        data_out.build_patches(0, true, xsh);
 
   std::ofstream out(fname);
   data_out.write_eps(out);
@@ -279,13 +294,61 @@ PolarSolver::do_text_calc(bool repeat){
     // set text constraints
     constraints.clear();
     DoFTools::make_hanging_node_constraints(dofs, constraints);
-    if (ZBC)
-      VectorTools::interpolate_boundary_values(
-          dofs, 0, ZeroFunction<dim>(), constraints);
-    VectorTools::interpolate_boundary_values(
-        dofs, 3, ZeroFunction<dim>(), constraints);
-    VectorTools::interpolate_boundary_values(
-        dofs, 2, ConstantFunction<dim>(0.5*M_PI), constraints);
+
+    // for some reason order is important (should be same as in wave_calc?)
+    switch (bctype){
+      case HQV_PAIR_ZBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 0, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 4, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(0.5*M_PI), constraints);
+      break;
+      case HQV_PAIR_NBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(0.5*M_PI), constraints);
+      break;
+      case SQV_PAIR_ZBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 0, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 4, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(M_PI), constraints);
+      break;
+      case SQV_PAIR_NBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(M_PI), constraints);
+      break;
+      case SQV_CHAIN_ZBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 0, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ConstantFunction<dim>(-M_PI/2), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(M_PI/2), constraints);
+      break;
+      case SQV_CHAIN_NBC:
+        VectorTools::interpolate_boundary_values(
+            dofs, 0, ZeroFunction<dim>(), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 3, ConstantFunction<dim>(-M_PI/2), constraints);
+        VectorTools::interpolate_boundary_values(
+            dofs, 2, ConstantFunction<dim>(M_PI/2), constraints);
+      break;
+      default:
+        std::cerr << "Unsupported vortex type\n";
+        exit(1);
+    }
     constraints.close();
 
     // extend texture to constrained points (maybe not needed, but safe)
@@ -469,11 +532,41 @@ PolarSolver::do_wave_calc(){
   // set wave constraints
   constraints.clear();
   DoFTools::make_hanging_node_constraints(dofs, constraints);
-  if (ZBC)
-    VectorTools::interpolate_boundary_values(
-        dofs, 0, ZeroFunction<dim>(), constraints);
-  VectorTools::interpolate_boundary_values(
-    dofs, 3, ZeroFunction<dim>(), constraints);
+
+  // for some reason order is important (should be same as in text_calc?)
+  switch (bctype){
+    case HQV_PAIR_ZBC:
+      VectorTools::interpolate_boundary_values(
+          dofs, 0, ZeroFunction<dim>(), constraints);
+      VectorTools::interpolate_boundary_values(
+          dofs, 4, ZeroFunction<dim>(), constraints);
+      VectorTools::interpolate_boundary_values(
+          dofs, 3, ZeroFunction<dim>(), constraints);
+    break;
+    case HQV_PAIR_NBC:
+      VectorTools::interpolate_boundary_values(
+          dofs, 3, ZeroFunction<dim>(), constraints);
+    break;
+    case SQV_PAIR_ZBC:
+      VectorTools::interpolate_boundary_values(
+          dofs, 0, ZeroFunction<dim>(), constraints);
+      VectorTools::interpolate_boundary_values(
+          dofs, 4, ZeroFunction<dim>(), constraints);
+      VectorTools::interpolate_boundary_values(
+          dofs, 3, ZeroFunction<dim>(), constraints);
+    break;
+    case SQV_PAIR_NBC:
+      VectorTools::interpolate_boundary_values(
+          dofs, 3, ZeroFunction<dim>(), constraints);
+    break;
+    case SQV_CHAIN_ZBC:
+    break;
+    case SQV_CHAIN_NBC:
+    break;
+    default:
+      std::cerr << "Unsupported vortex type\n";
+      exit(1);
+  }
   constraints.close();
 
   // init the wave vector
@@ -596,7 +689,7 @@ calc(double Lx, double Ly, double R){
     // loop for solving the texture equation and grid refinement
     double err=1;
 //    while (err>grid_acc){
-    for (int i=0;i<6; i++) {
+    for (int i=0;i<8; i++) {
       err = ps.refine_grid(0.3, 0.03);
       ps.do_text_calc();
     }
@@ -614,7 +707,7 @@ calc(double Lx, double Ly, double R){
     ps.save_data("wave1.eps", ps.wave, 0);
 
     double amp = ps.calc_amp();
-    printf("%5.2f %5.2f %5.2f  %6.4f %6.4f\n", 2*Lx, 2*Ly, 2*R, ps.en, amp);
+    fprintf(stdout, "%5.2f %5.2f %5.2f  %6.4f %6.4f\n", 2*Lx, 2*Ly, 2*R, ps.en, amp);
 
     return ps.en;
   }
@@ -655,8 +748,5 @@ int main(){
     E.push_back(calc(Lx, Ly, R));
   }
 
-//  for (unsigned int i=0; i<D.size(); i++){
-//    printf("%5.2f %6.4f\n", D[i], -E[i]);
-//  }
   return 0;
 }
