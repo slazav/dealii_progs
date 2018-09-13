@@ -190,15 +190,20 @@ PolarSolver::save_grid(const char* fname){
   grid_out.write_eps(triang,out);
 }
 void
-PolarSolver::save_data(const char* fname, const Vector<double> & data, int var){
+PolarSolver::save_data(const char* fname, const Vector<double> & data, int var,
+                       bool draw_mesh, bool draw_rot){
   DataOutBase::EpsFlags eps_flags;
 
 
   eps_flags.z_scaling = 2./data.linfty_norm();
-//  eps_flags.draw_mesh = false;
-  eps_flags.azimut_angle = 60;
-  eps_flags.turn_angle   = 140;
-  eps_flags.line_width   = 0.1;
+  eps_flags.draw_mesh = draw_mesh;
+  if (draw_rot){
+    eps_flags.azimut_angle = 60;
+    eps_flags.turn_angle   = 140;
+  } else {
+    eps_flags.azimut_angle = 0;
+    eps_flags.turn_angle   = 0;
+  }
   if (var>0) eps_flags.color_function = &sym_color_function;
 
   DataOutSym data_out;
@@ -461,7 +466,7 @@ PolarSolver::get_amp(){
 /*************************************************************************/
 // do the wave calculations
 void
-PolarSolver::do_wave_calc(){
+PolarSolver::do_wave_calc(double en_){
 
   // set wave constraints
   constraints.clear();
@@ -585,7 +590,7 @@ PolarSolver::do_wave_calc(){
 
   // solve the system
   {
-    en=-1;
+    en=en_;
     for (unsigned int i = 0; i<wave.size(); i++) wave[i]=1;
 
     SolverControl solver_control(10000, 1e-6);
