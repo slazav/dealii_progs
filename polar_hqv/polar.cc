@@ -111,7 +111,7 @@ int main(int argc, char *argv[]){
     double amp = ps.get_amp();
     double en  = ps.get_en();
     std::cerr << "En: " << en << " Amp: " << amp << "\n";
-    fprintf(stdout, "%5.2f %5.2f %5.2f  %6.4f %6.4f\n", 2*Lx, 2*Ly, 2*R, en, amp);
+    fprintf(stdout, "%5.2f %5.2f %5.2f  %e %e\n", 2*Lx, 2*Ly, 2*R, en, amp);
 
   }
   catch (Err E){
