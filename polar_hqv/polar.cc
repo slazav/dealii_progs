@@ -1,21 +1,55 @@
+#include <getopt.h> // for getopt
 #include "polar_solver.h"
 
-//// Inter-vortex distances. Array with a few values:
-//  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
-//                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10,
-//                              12, 16, 20, 25};
-//  static const double DD[] = {1.75, 2.25, 2.75, 3.25};
-static const double DD[] = {8};
-/*************************************************************************/
+// print help
+void help(){
+  std::cout <<
+  "polar - calculate testure and spin waves in the polar phase of 3He.\n"
+  "Usage: polar [options]\n"
+  "Options:\n"
+  " -h         write this help message and exit\n"
+  " -R <value>  1/2 of the inter-vortex distance, in \\xi units (default 4)\n"
+  " -X <value>  1/2 of the X-dimension (default 2*R)\n"
+  " -Y <value>  1/2 of the Y-dimension (default R)\n"
+  "Calculation is done in X x Y area, then result is symmetrically\n"
+  "extended to 2X x 2Y. Use R>X for infinite soliton.\n"
+  "See bctype.png image. \n"
+  ;
+}
 
-double
-calc(double Lx, double Ly, double R, PolarSolver::BCType bctype){
+int main(int argc, char *argv[]){
   try {
+    /* default values */
+    double R  = 4.0; // 1/2 of intervortex distance
+    double Lx = 0.0; // 1/2 of the calculation area x size
+    double Ly = 0.0; // 1/2 of the calculation area y size
+    PolarSolver::BCType bctype = PolarSolver::HQV_PAIR_ZBC;
 
-//    double grid_acc = 1e-2;
+    /* parse  options */
+    opterr=0;
+    while(1){
+      int c = getopt(argc, argv, "+hR:X:Y:");
+      if (c==-1) break;
+      switch (c){
+        case '?': throw Err() << "Unknown option: -" << (char)optopt;
+        case ':': throw Err() << "No argument: -" << (char)optopt;
+        case 'h': help(); return 0;
+        case 'R': R  = atof(optarg); break;
+        case 'X': Lx = atof(optarg); break;
+        case 'Y': Ly = atof(optarg); break;
+      }
+    }
+    argc-=optind;
+    argv+=optind;
+    optind=1;
+
+    if (R  <= 0.0) throw Err() << "R should be positive";
+    if (Lx <= 0.0) Lx = 2*R;
+    if (Ly <= 0.0) Ly = R;
+
+    double grid_acc = 1e-3;
 //    double text_acc = 1e-2;
 
-    //deallog.depth_console(0);
     PolarSolver ps(Lx, Ly, R, bctype);
 
     std::cerr << "Start from a coars grid (grid1.eps)\n";
@@ -24,8 +58,7 @@ calc(double Lx, double Ly, double R, PolarSolver::BCType bctype){
 
     std::cerr << "Do a few texture calculations with the grid refinment:\n";
     double err=1;
-//    while (err>grid_acc){
-    for (int i=0;i<8; i++) {
+    while (err>grid_acc){
       ps.do_text_calc();
       err = ps.refine_grid(0.3, 0.03); // refine 30% worst cells; coarse 3% best cells.
     }
@@ -35,7 +68,7 @@ calc(double Lx, double Ly, double R, PolarSolver::BCType bctype){
     std::cerr << "Do a few texture calculations with the fixed grid:\n";
     for (int i=0; i<3; i++){
       ps.do_text_calc(false);
-//      std::cerr << "Texture quality:" << ps.check_text() << "\n";
+      //std::cerr << "Texture quality:" << ps.check_text() << "\n";
     }
     std::cerr << "Save the calculated texture to text1.eps.\n";
     ps.save_texture("text1.eps", 1);
@@ -49,33 +82,15 @@ calc(double Lx, double Ly, double R, PolarSolver::BCType bctype){
     std::cerr << "En: " << en << " Amp: " << amp << "\n";
     fprintf(stdout, "%5.2f %5.2f %5.2f  %6.4f %6.4f\n", 2*Lx, 2*Ly, 2*R, en, amp);
 
-    return en;
+  }
+  catch (Err E){
+    std::cerr << "Error: " << E.str() << std::endl;
   }
   catch(std::exception &exc) {
-    std::cerr << "Exception on processing: " << std::endl
-              << exc.what() << std::endl
-              << "Aborting!" << std::endl;
-    return 0;
+    std::cerr << "Error: " << exc.what() << std::endl;
   }
   catch(...){
-    std::cerr << "Unknown exception!" << std::endl
-              << "Aborting!" << std::endl;
-    return 0;
+    std::cerr << "Unknown Error!" << std::endl;
   }
-}
-
-int main(){
-  PolarSolver::BCType bctype = PolarSolver::HQV_PAIR_ZBC;
-
-  std::vector<double> D(DD, DD + sizeof(DD)/sizeof(DD[0]));
-  std::vector<double> E; // result
-  std::vector<double>::iterator i;
-  for (i=D.begin(); i!=D.end(); i++){
-    double R = (*i)/2.0; // half of inter-vortex distance
-    double Lx=4*R;       // calculation area, x-size
-    double Ly=2*R;         // calculation area, y-size
-    E.push_back(calc(Lx, Ly, R, bctype));
-  }
-
   return 0;
 }

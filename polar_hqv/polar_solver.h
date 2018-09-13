@@ -9,9 +9,21 @@
 // 2-dimensional problem
 #define DIM 2
 
+// Error class
+class Err {
+  std::ostringstream s;
+  public:
+    Err(){}
+    Err(const Err & o) { s << o.s.str(); }
+    template <typename T>
+    Err & operator<<(const T & o){ s << o; return *this; }
+    std::string str()   const { return s.str(); }
+};
+
 /*************************************************************************/
 class PolarSolver {
   public:
+
 
   // Possible types of boundary conditions (see bctype.png image).
   enum BCType {
