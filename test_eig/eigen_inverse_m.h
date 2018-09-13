@@ -203,22 +203,23 @@ EigenInverseM<VECTOR>::solve (double       &value,
       M.vmult(m,y);
       length = m*x0;
 
-      // do a little trick to compute the sign
-      // with not too much effect of round-off errors.
-      double entry = 0.;
-      size_type i = 0;
-      double thresh = length/x.size();
-      do
-        {
-          Assert (i<x.size(), ExcInternalError());
-          entry = y (i++);
-        }
-      while (std::fabs(entry) < thresh);
+//      // do a little trick to compute the sign
+//      // with not too much effect of round-off errors.
+//      double entry = 0.;
+//      size_type i = 0;
+//      double thresh = length/x.size();
+//      do
+//        {
+//          Assert (i<x.size(), ExcInternalError());
+//          entry = y (i++);
+//        }
+//      while (std::fabs(entry) < thresh);
 
-      --i;
+//      --i;
 
       // Compute unshifted eigenvalue
-      value = (entry * x(i) < 0. ? -1. : 1.) / length - current_shift;
+//      value = (entry * x(i) < 0. ? -1. : 1.) / length - current_shift;
+      value = 1. / length - current_shift;
 
       //std::cout << ">>" << iter << " " << goal << " " << current_shift << " " << value << " " << 1./length << "\n";
       if (iter==goal)
