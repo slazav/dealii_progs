@@ -10,7 +10,7 @@
 #define eigen_inverse_m_h
 
 #include <deal.II/base/config.h>
-#include <deal.II/lac/shifted_matrix.h>
+#include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/solver.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/solver_cg.h>
@@ -144,7 +144,7 @@ EigenInverseM<VECTOR>::~EigenInverseM ()
 
 
 template <class VECTOR>
-template <class MATRIX>
+template <typename MATRIX>
 void
 EigenInverseM<VECTOR>::solve (double       &value,
                              const MATRIX &A,
@@ -156,7 +156,10 @@ EigenInverseM<VECTOR>::solve (double       &value,
   SolverControl::State conv=SolverControl::iterate;
 
   // Prepare matrix for solver
-  ShiftedMatrixGeneralized <MATRIX,MATRIX,VECTOR> A_s(A, M, -value);
+  auto A_op = linear_operator(A);
+  auto M_op = linear_operator(M);
+  double current_shift = -value;
+  auto A_s = A_op + M_op*current_shift;
 
   // Define solver
   ReductionControl inner_control (5000, 1.e-16, 1.e-5, false, false);
@@ -168,22 +171,24 @@ EigenInverseM<VECTOR>::solve (double       &value,
   unsigned int goal = additional_data.start_adaption;
 
   // Auxiliary vector
-  VECTOR *Vy = this->memory.alloc ();
+  typename VectorMemory<VECTOR>::Pointer Vy (this->memory);
   VECTOR &y = *Vy;
   y.reinit (x);
-  VECTOR *Vr = this->memory.alloc ();
+  typename VectorMemory<VECTOR>::Pointer Vr (this->memory);
   VECTOR &r = *Vr;
   r.reinit (x);
-  VECTOR *Vm = this->memory.alloc ();
+  typename VectorMemory<VECTOR>::Pointer Vm (this->memory);
   VECTOR &m = *Vm;
   m.reinit (x);
-  VECTOR *Vx0 = this->memory.alloc ();
+  typename VectorMemory<VECTOR>::Pointer Vx0 (this->memory);
   VECTOR &x0 = *Vx0;
   x0.reinit (x);
 
   x0.equ(1.0,x);
   double length = x*x0;
+
   double old_value = value;
+
   x *= 1./length;
 
   // Main loop
@@ -191,23 +196,40 @@ EigenInverseM<VECTOR>::solve (double       &value,
   size_type iter=0;
   for (; conv==SolverControl::iterate; iter++)
     {
-      M.vmult(m,x);
-
-      solver.solve (A_s, y, m, prec);
+       M.vmult(m,x);
+       solver.solve (A_s, y, m, prec);
 
       // Compute absolute value of eigenvalue
       M.vmult(m,y);
       length = m*x0;
-      //std::cout << ">>" << iter << " " << A_s.shift() << " " << value << " " << 1./length << "\n";
+
+      // do a little trick to compute the sign
+      // with not too much effect of round-off errors.
+      double entry = 0.;
+      size_type i = 0;
+      double thresh = length/x.size();
+      do
+        {
+          Assert (i<x.size(), ExcInternalError());
+          entry = y (i++);
+        }
+      while (std::fabs(entry) < thresh);
+
+      --i;
 
       // Compute unshifted eigenvalue
-      value = - A_s.shift() + 1./length;
+      value = (entry * x(i) < 0. ? -1. : 1.) / length - current_shift;
 
+      //std::cout << ">>" << iter << " " << goal << " " << current_shift << " " << value << " " << 1./length << "\n";
       if (iter==goal)
         {
-          const double new_shift = - additional_data.relaxation * value
-                                   + (1.-additional_data.relaxation) * A_s.shift();
-          A_s.shift(new_shift);
+          const auto &relaxation = additional_data.relaxation;
+          const double new_shift =
+            relaxation * (-value) + (1. - relaxation) * current_shift;
+
+          A_s = A_op + M_op * new_shift;
+          current_shift = new_shift;
+
           ++goal;
         }
 
@@ -218,8 +240,7 @@ EigenInverseM<VECTOR>::solve (double       &value,
         {
           y.equ (value, x);
           A.vmult(r,x);
-          M.vmult(m,x);
-          r.sadd(-1., value, m);
+          r.sadd(-1., value, x);
           res = r.l2_norm();
           // Check the residual
           conv = this->iteration_status (iter, res, x);
@@ -232,17 +253,11 @@ EigenInverseM<VECTOR>::solve (double       &value,
       old_value = value;
     }
 
-  this->memory.free(Vx0);
-  this->memory.free(Vy);
-  this->memory.free(Vr);
-  this->memory.free(Vm);
-
-  deallog.pop();
-
   // in case of failure: throw
   // exception
   AssertThrow (conv == SolverControl::success,
-               SolverControl::NoConvergence (iter, res));
+               SolverControl::NoConvergence (iter,
+                                             res));
   // otherwise exit as normal
 }
 

@@ -1,7 +1,7 @@
 # Set the name of the project and target:
 SET(TARGET "test_wave")
-SET(INCS "eigen_inverse_m.h" "shifted_matrix.h")
-SET(DEAL_II_DIR "~/PROG_OTHER/dealii")
+SET(INCS "eigen_inverse_m.h")
+SET(DEAL_II_DIR "~/PROG/OTHER/dealii")
 
 # Declare all source files the target consists of. Here, this is only
 # the one step-X.cc file, but as you expand your project you may wish

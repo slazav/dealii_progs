@@ -6,7 +6,6 @@
  *   lambda = (pi/Lx)^2 + (pi/Ly)^2
 */
 
-#include "shifted_matrix.h"
 #include "eigen_inverse_m.h"
 
 #include <deal.II/base/quadrature_lib.h>
