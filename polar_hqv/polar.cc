@@ -26,6 +26,7 @@ void help(){
   " -w (0|1)    draw mesh on the wave plot (default 0)\n"
   " -r (0|1)    rotated wave plot (default 0)\n"
   " -A          calculate antisymmetric waves\n"
+  " -N          use Neumann BC\n"
   ;
 }
 
@@ -48,7 +49,7 @@ int main(int argc, char *argv[]){
     /* parse  options */
     opterr=0;
     while(1){
-      int c = getopt(argc, argv, "+hR:X:Y:Z:e:g:G:T:W:w:r:A");
+      int c = getopt(argc, argv, "+hR:X:Y:Z:e:g:G:T:W:w:r:AN");
       if (c==-1) break;
       switch (c){
         case '?': throw Err() << "Unknown option: -" << (char)optopt;
@@ -66,6 +67,7 @@ int main(int argc, char *argv[]){
         case 'w': wave_mesh = atoi(optarg); break;
         case 'r': wave_rot  = atoi(optarg); break;
         case 'A': wave_symm = false; break;
+        case 'N': bctype = PolarSolver::HQV_PAIR_NBC; break;
       }
     }
     argc-=optind;
