@@ -1,4 +1,4 @@
-// output of symmentic data
+// output of symmetric data
 
 #ifndef dealii__data_out_sym_h
 #define dealii__data_out_sym_h
@@ -12,7 +12,7 @@ class DataOutSym : public DataOut<2>
 {
   public:
 
-  virtual void build_patches (
+  void build_sym_patches (
         const unsigned int n_subdivisions = 0,
         const bool xinv=false,  // invert x<0 area
         const double xshift=0.0 // shift  x<0 area

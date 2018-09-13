@@ -1,5 +1,3 @@
-#include "shifted_matrix.h"
-
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/logstream.h>
@@ -34,6 +32,14 @@
 #include <sstream>
 #include <iostream>
 
+
+//// Inter-vortex distances. Array with a few values:
+//  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
+//                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10,
+//                              12, 16, 20, 25};
+//  static const double DD[] = {1.75, 2.25, 2.75, 3.25};
+static const double DD[] = {8};
+
 #define dim 2
 
 using namespace dealii;
@@ -41,6 +47,7 @@ using namespace dealii;
 /*************************************************************************/
 /*************************************************************************/
 class PolarSolver {
+  public:
   enum BCType {
     HQV_PAIR_ZBC,
     HQV_PAIR_NBC,
@@ -48,10 +55,9 @@ class PolarSolver {
     SQV_PAIR_NBC,
     SQV_CHAIN_ZBC,
     SQV_CHAIN_NBC
-  } bctype;
+  };
 
-  public:
-    PolarSolver(const double Lx, const double Ly, const double R);
+    PolarSolver(const double Lx, const double Ly, const double R, const BCType bctype);
     ~PolarSolver();
 
   // Make the initial grid and initialize the texture to zero.
@@ -93,6 +99,7 @@ class PolarSolver {
     ConstraintMatrix     constraints;
     SparsityPattern      sparsity;
     double Lx, Ly, R;
+    BCType bctype;
 
     SparseMatrix<double> A,M;
     Vector<double>       B;
@@ -101,9 +108,8 @@ class PolarSolver {
 };
 
 PolarSolver::PolarSolver(
-     const double Lx_, const double Ly_, const double R_):
-     dofs(triang), fe(2), Lx(Lx_), Ly(Ly_), R(R_) {
-  bctype=SQV_PAIR_NBC;
+     const double Lx_, const double Ly_, const double R_, const BCType bctype_):
+     dofs(triang), fe(2), Lx(Lx_), Ly(Ly_), R(R_), bctype(bctype_) {
   wave_nopot = false;
 }
 
@@ -276,8 +282,8 @@ PolarSolver::save_data(const char* fname, const Vector<double> & data, int var){
   if (bctype==HQV_PAIR_ZBC || bctype==HQV_PAIR_NBC ||
       bctype==SQV_CHAIN_ZBC || bctype==SQV_CHAIN_NBC) xsh=M_PI;
 
-  if (var==0) data_out.build_patches(0);
-  else        data_out.build_patches(0, true, xsh);
+  if (var==0) data_out.build_sym_patches(0);
+  else        data_out.build_sym_patches(0, true, xsh);
 
   std::ofstream out(fname);
   data_out.write_eps(out);
@@ -673,14 +679,14 @@ PolarSolver::do_wave_calc(){
 /*************************************************************************/
 
 double
-calc(double Lx, double Ly, double R){
+calc(double Lx, double Ly, double R, PolarSolver::BCType bctype){
   try {
 
 //    double grid_acc = 1e-2;
 //    double text_acc = 1e-2;
 
     deallog.depth_console(0);
-    PolarSolver ps(Lx, Ly, R);
+    PolarSolver ps(Lx, Ly, R, bctype);
 
     ps.make_initial_grid();
     ps.save_grid("grid1.eps");
@@ -725,27 +731,16 @@ calc(double Lx, double Ly, double R){
 }
 
 int main(){
-
-//  static const double DD[] = {0.2, 0.24, 0.28, 0.32, 0.36, 0.4, 0.44, 0.48, 0.52, 0.56, 0.60, 0.70, 0.80, 1.00,
-//                              1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10,
-//                              12, 16, 20, 25};
-//  static const double DD[] = {1.75, 2.25, 2.75, 3.25};
-
-  static const double DD[] = {8};
+  PolarSolver::BCType bctype = PolarSolver::HQV_PAIR_ZBC;
 
   std::vector<double> D(DD, DD + sizeof(DD)/sizeof(DD[0]));
-  std::vector<double> E;
+  std::vector<double> E; // result
   std::vector<double>::iterator i;
   for (i=D.begin(); i!=D.end(); i++){
-    double R = (*i)/2.0;
-    double Lx=2*R;
-    double Ly=R;
-
-//    double R =  (*i)/2.0;
-//    double Lx = (*i)/2.0;
-//    double Ly= (*i)/2.0;
-
-    E.push_back(calc(Lx, Ly, R));
+    double R = (*i)/2.0; // half of inter-vortex distance
+    double Lx=2*R;       // calculation area, x-size
+    double Ly=R;         // calculation area, y-size
+    E.push_back(calc(Lx, Ly, R, bctype));
   }
 
   return 0;
