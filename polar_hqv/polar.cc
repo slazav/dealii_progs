@@ -12,8 +12,8 @@ void help(){
   " -R <value>  1/2 of the inter-vortex distance, in \\xi units (default 4)\n"
   " -X <value>  1/2 of the X-dimension\n"
   " -Y <value>  1/2 of the Y-dimension\n"
-  " -x <value>  ratio X/R (default 2, used if -X is not set)\n"
-  " -y <value>  ratio Y/R (default 1, used if -Y is not set)\n"
+  " -Z <value>  if X or Y is not set then use X=R+Z or Y=Z (default 6)\n"
+  "             Z is distance from vortices to the boundary\n"
 
   "Calculation is done in X x Y area, then result is symmetrically\n"
   "extended to 2X x 2Y. Use R>X for infinite soliton.\n"
@@ -34,8 +34,7 @@ int main(int argc, char *argv[]){
     double R  = 4.0; // 1/2 of intervortex distance
     double Lx = 0.0; // 1/2 of the calculation area x size
     double Ly = 0.0; // 1/2 of the calculation area y size
-    double kx = 2.0;
-    double ky = 1.0;
+    double Z = 6.0;
     PolarSolver::BCType bctype = PolarSolver::HQV_PAIR_ZBC;
     double grid_acc = 1e-3; // grid accuracy
     const char *fname_w = "wave.eps";
@@ -48,7 +47,7 @@ int main(int argc, char *argv[]){
     /* parse  options */
     opterr=0;
     while(1){
-      int c = getopt(argc, argv, "+hR:X:Y:x:y:e:g:G:T:W:w:r:");
+      int c = getopt(argc, argv, "+hR:X:Y:Z:e:g:G:T:W:w:r:");
       if (c==-1) break;
       switch (c){
         case '?': throw Err() << "Unknown option: -" << (char)optopt;
@@ -57,8 +56,7 @@ int main(int argc, char *argv[]){
         case 'R': R  = atof(optarg); break;
         case 'X': Lx = atof(optarg); break;
         case 'Y': Ly = atof(optarg); break;
-        case 'x': kx = atof(optarg); break;
-        case 'y': ky = atof(optarg); break;
+        case 'Z': Z = atof(optarg); break;
         case 'e': en0 = atof(optarg); break;
         case 'g': grid_acc = atof(optarg); break;
         case 'G': fname_g = optarg; break;
@@ -73,8 +71,8 @@ int main(int argc, char *argv[]){
     optind=1;
 
     if (R  <= 0.0) throw Err() << "R should be positive";
-    if (Lx <= 0.0) Lx = kx*R;
-    if (Ly <= 0.0) Ly = ky*R;
+    if (Lx <= 0.0) Lx = R+Z;
+    if (Ly <= 0.0) Ly = Z;
 
 //    double text_acc = 1e-2;
 
