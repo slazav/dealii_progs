@@ -1,6 +1,7 @@
 # Set the name of the project and target:
 SET(TARGET "polar")
-SET(INCS "eigen_inverse_m.h")
+SET(SRCS "polar.cc" "polar_solver.cc")
+SET(INCS "eigen_inverse_m.h" "polar_solver.h")
 SET(DEAL_II_DIR "~/PROG/OTHER/dealii")
 
 # Declare all source files the target consists of. Here, this is only
@@ -13,7 +14,7 @@ SET(DEAL_II_DIR "~/PROG/OTHER/dealii")
 # or switch altogether to the large project CMakeLists.txt file discussed
 # in the "CMake in user projects" page accessible from the "User info"
 # page of the documentation.
-SET(TARGET_SRC ${TARGET}.cc ${INCS})
+SET(TARGET_SRC ${SRCS} ${INCS})
 
 # Usually, you will not need to modify anything beyond this point...
 
