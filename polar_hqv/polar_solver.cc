@@ -191,7 +191,7 @@ PolarSolver::save_grid(const char* fname){
 }
 void
 PolarSolver::save_data(const char* fname, const Vector<double> & data, int var,
-                       bool draw_mesh, bool draw_rot){
+                       bool draw_mesh, bool draw_rot, bool wave_symm){
   DataOutBase::EpsFlags eps_flags;
 
 
@@ -212,12 +212,12 @@ PolarSolver::save_data(const char* fname, const Vector<double> & data, int var,
   data_out.attach_dof_handler(dofs);
   data_out.add_data_vector(data, "data");
 
-  double xsh=2*M_PI;
+  double sh=2*M_PI;
   if (bctype==HQV_PAIR_ZBC || bctype==HQV_PAIR_NBC ||
-      bctype==SQV_CHAIN_ZBC || bctype==SQV_CHAIN_NBC) xsh=M_PI;
+      bctype==SQV_CHAIN_ZBC || bctype==SQV_CHAIN_NBC) sh=M_PI;
 
-  if (var==0) data_out.build_sym_patches(0);
-  else        data_out.build_sym_patches(0, true, xsh);
+  if (var==0) data_out.build_sym_patches(0, !wave_symm, false, 0);
+  else        data_out.build_sym_patches(0, false, true, sh);
 
   std::ofstream out(fname);
   data_out.write_eps(out);
@@ -466,11 +466,16 @@ PolarSolver::get_amp(){
 /*************************************************************************/
 // do the wave calculations
 void
-PolarSolver::do_wave_calc(double en_){
+PolarSolver::do_wave_calc(double en_, bool symmetric){
 
   // set wave constraints
   constraints.clear();
   DoFTools::make_hanging_node_constraints(dofs, constraints);
+
+  // for antisymmetric waves BC at boundary 1
+  if (!symmetric)
+    VectorTools::interpolate_boundary_values(
+        dofs, 1, ZeroFunction<DIM>(), constraints);
 
   // for some reason order is important (should be same as in text_calc?)
   switch (bctype){

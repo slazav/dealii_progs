@@ -25,6 +25,7 @@ void help(){
   " -W <fname>  EPS file for wave image    (default wave.eps)\n"
   " -w (0|1)    draw mesh on the wave plot (default 0)\n"
   " -r (0|1)    rotated wave plot (default 0)\n"
+  " -A          calculate antisymmetric waves\n"
   ;
 }
 
@@ -43,11 +44,11 @@ int main(int argc, char *argv[]){
     double en0 = -1; // initial value for energy
     bool wave_mesh = false; // draw mesh on the wave plot 
     bool wave_rot  = false; // rotated wave plot
-
+    bool wave_symm = 1; // calculate symmetric waves
     /* parse  options */
     opterr=0;
     while(1){
-      int c = getopt(argc, argv, "+hR:X:Y:Z:e:g:G:T:W:w:r:");
+      int c = getopt(argc, argv, "+hR:X:Y:Z:e:g:G:T:W:w:r:A");
       if (c==-1) break;
       switch (c){
         case '?': throw Err() << "Unknown option: -" << (char)optopt;
@@ -64,6 +65,7 @@ int main(int argc, char *argv[]){
         case 'W': fname_w = optarg; break;
         case 'w': wave_mesh = atoi(optarg); break;
         case 'r': wave_rot  = atoi(optarg); break;
+        case 'A': wave_symm = false; break;
       }
     }
     argc-=optind;
@@ -99,11 +101,11 @@ int main(int argc, char *argv[]){
     }
 
     std::cerr << "Do wave calculation\n";
-    ps.do_wave_calc(en0);
+    ps.do_wave_calc(en0, wave_symm);
 
     if (fname_w != NULL && strlen(fname_w)>0){
       std::cerr << "Saving wave to " << fname_w << "\n";
-      ps.save_wave(fname_w, wave_mesh, wave_rot);
+      ps.save_wave(fname_w, wave_mesh, wave_rot, wave_symm);
     }
 
     double amp = ps.get_amp();

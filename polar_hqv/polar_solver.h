@@ -27,12 +27,13 @@ class PolarSolver {
 
   // Possible types of boundary conditions (see bctype.png image).
   enum BCType {
+    // bc for symmetric waves
     HQV_PAIR_ZBC,
     HQV_PAIR_NBC,
     SQV_PAIR_ZBC,
     SQV_PAIR_NBC,
     SQV_CHAIN_ZBC,
-    SQV_CHAIN_NBC
+    SQV_CHAIN_NBC,
   };
 
   // create a solver. Grid size is Lx x Ly, half of inter-vortex distance is R
@@ -57,15 +58,15 @@ class PolarSolver {
     save_data(fname, texture, 1, draw_mesh, draw_rot);}
 
   // save the wave to eps file
-  void save_wave(const char* fname, bool draw_mesh=true, bool draw_rot=true) {
-    save_data(fname, wave, 0, draw_mesh, draw_rot);}
+  void save_wave(const char* fname, bool draw_mesh=true, bool draw_rot=true, bool wave_symm=true) {
+    save_data(fname, wave, 0, draw_mesh, draw_rot, wave_symm);}
 
   // Do the texture calculations.
   // repeat=true shows that texture didn't change after the last calculation
   void do_text_calc(bool repeat=false);
 
   // Do the wave calculation. Parameter en is the initial value for energy.
-  void do_wave_calc(double en=-1);
+  void do_wave_calc(double en=-1, bool symmetric=true);
 
   // Calculate texture accuracy by integrating (nabla^2 a - sin(2a)/2)^2
   // (Does not work?)
@@ -81,7 +82,7 @@ class PolarSolver {
 
     // save a data vector to eps file
     void save_data(const char* fname, const dealii::Vector<double> & data, int var,
-                   bool draw_mesh, bool draw_rot);
+                   bool draw_mesh, bool draw_rot, bool wave_symm=true);
 
     // Setup boundary IDs. Used in make_initial_grid() and refine_grid().
     void setup_boundary_ids();

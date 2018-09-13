@@ -14,8 +14,9 @@ class DataOutSym : public DataOut<2>
 
   void build_sym_patches (
         const unsigned int n_subdivisions = 0,
-        const bool xinv=false,  // invert x<0 area
-        const double xshift=0.0 // shift  x<0 area
+        const bool xinv=false,  // invert x>0 area
+        const bool yinv=false,  // invert y>0 area
+        const double yshift=0.0 // shift  y>0 area
        ){
     DataOut<2>::build_patches(n_subdivisions);
 
@@ -37,17 +38,24 @@ class DataOutSym : public DataOut<2>
         patches[3*N+i].vertices[j][1] = -patches[i].vertices[j][1];
       }
 
-      if (xinv){
+      if (yinv){
         for (unsigned int j=0; j < patches[i].data.size()[1]; j++){
           patches[2*N+i].data(0,j) = - patches[2*N+i].data(0,j);
           patches[3*N+i].data(0,j) = - patches[3*N+i].data(0,j);
         }
       }
 
-      if (xshift!=0.0){
+      if (xinv){
         for (unsigned int j=0; j < patches[i].data.size()[1]; j++){
-          patches[2*N+i].data(0,j) = xshift + patches[2*N+i].data(0,j);
-          patches[3*N+i].data(0,j) = xshift + patches[3*N+i].data(0,j);
+          patches[1*N+i].data(0,j) = - patches[1*N+i].data(0,j);
+          patches[3*N+i].data(0,j) = - patches[3*N+i].data(0,j);
+        }
+      }
+
+      if (yshift!=0.0){
+        for (unsigned int j=0; j < patches[i].data.size()[1]; j++){
+          patches[2*N+i].data(0,j) = yshift + patches[2*N+i].data(0,j);
+          patches[3*N+i].data(0,j) = yshift + patches[3*N+i].data(0,j);
         }
       }
 
