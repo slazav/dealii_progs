@@ -1,4 +1,5 @@
 #include <getopt.h> // for getopt
+#include <cstring>
 #include "polar_solver.h"
 
 // print help
@@ -14,6 +15,10 @@ void help(){
   "Calculation is done in X x Y area, then result is symmetrically\n"
   "extended to 2X x 2Y. Use R>X for infinite soliton.\n"
   "See bctype.png image. \n"
+  " -g <value>  grid accuracy (default 1e-3)\n"
+  " -G <fname>  EPS file for grid image    (default grid.eps)\n"
+  " -T <fname>  EPS file for texture image (default text.eps)\n"
+  " -W <fname>  EPS file for wave image    (default wave.eps)\n"
   ;
 }
 
@@ -24,11 +29,15 @@ int main(int argc, char *argv[]){
     double Lx = 0.0; // 1/2 of the calculation area x size
     double Ly = 0.0; // 1/2 of the calculation area y size
     PolarSolver::BCType bctype = PolarSolver::HQV_PAIR_ZBC;
+    double grid_acc = 1e-3; // grid accuracy
+    const char *fname_w = "wave.eps";
+    const char *fname_t = "text.eps";
+    const char *fname_g = "grid.eps";
 
     /* parse  options */
     opterr=0;
     while(1){
-      int c = getopt(argc, argv, "+hR:X:Y:");
+      int c = getopt(argc, argv, "+hR:X:Y:g:W:T:G:");
       if (c==-1) break;
       switch (c){
         case '?': throw Err() << "Unknown option: -" << (char)optopt;
@@ -37,6 +46,10 @@ int main(int argc, char *argv[]){
         case 'R': R  = atof(optarg); break;
         case 'X': Lx = atof(optarg); break;
         case 'Y': Ly = atof(optarg); break;
+        case 'g': grid_acc = atof(optarg); break;
+        case 'W': fname_w = optarg; break;
+        case 'T': fname_t = optarg; break;
+        case 'G': fname_g = optarg; break;
       }
     }
     argc-=optind;
@@ -47,35 +60,37 @@ int main(int argc, char *argv[]){
     if (Lx <= 0.0) Lx = 2*R;
     if (Ly <= 0.0) Ly = R;
 
-    double grid_acc = 1e-3;
 //    double text_acc = 1e-2;
 
     PolarSolver ps(Lx, Ly, R, bctype);
 
-    std::cerr << "Start from a coars grid (grid1.eps)\n";
-    ps.make_initial_grid();
-    ps.save_grid("grid1.eps");
 
     std::cerr << "Do a few texture calculations with the grid refinment:\n";
     double err=1;
+    ps.make_initial_grid();
+    ps.do_text_calc();
     while (err>grid_acc){
-      ps.do_text_calc();
       err = ps.refine_grid(0.3, 0.03); // refine 30% worst cells; coarse 3% best cells.
-    }
-    std::cerr << "grid accuracy after refinment (grid2.eps): " << err << "\n";
-    ps.save_grid("grid2.eps");
-
-    std::cerr << "Do a few texture calculations with the fixed grid:\n";
-    for (int i=0; i<3; i++){
       ps.do_text_calc(false);
       //std::cerr << "Texture quality:" << ps.check_text() << "\n";
     }
-    std::cerr << "Save the calculated texture to text1.eps.\n";
-    ps.save_texture("text1.eps", 1);
+    std::cerr << "Grid accuracy after refinment: " << err << "\n";
+    if (fname_g != NULL && strlen(fname_g)>0){
+      std::cerr << "Saving grid to " << fname_g << "\n";
+      ps.save_grid(fname_g);
+    }
+    if (fname_t != NULL && strlen(fname_t)>0){
+      std::cerr << "Saving texture to " << fname_t << "\n";
+      ps.save_texture(fname_t, 1);
+    }
 
-    std::cerr << "Do wave calculation and save result to wave1.eps\n";
+    std::cerr << "Do wave calculation\n";
     ps.do_wave_calc();
-    ps.save_wave("wave1.eps", 0);
+
+    if (fname_w != NULL && strlen(fname_w)>0){
+      std::cerr << "Saving wave to " << fname_w << "\n";
+      ps.save_wave(fname_w, 0);
+    }
 
     double amp = ps.get_amp();
     double en  = ps.get_en();

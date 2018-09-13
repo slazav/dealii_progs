@@ -395,29 +395,29 @@ PolarSolver::check_text(){
   // same for laplacian
   std::vector<double> cell_val(nq);
   std::vector<double> cell_lap(nq);
-//  std::vector<Tensor<1,DIM> > cell_grad(nq);
+  std::vector<Tensor<1,DIM> > cell_grad(nq);
 
-  double I1=0; // integral
+  // integrals:
+  double I0=0, I1=0;
 
   typename DoFHandler<DIM>::active_cell_iterator cell;
   for (cell= dofs.begin_active(); cell!=dofs.end(); ++cell) {
     fe_values.reinit(cell);
     fe_values.get_function_values(texture, cell_val);
     fe_values.get_function_laplacians(texture, cell_lap);
-//    fe_values.get_function_gradients(texture, cell_grad);
+    fe_values.get_function_gradients(texture, cell_grad);
 
     for (unsigned int q=0; q<nq; ++q){
-
-//      std::cerr << "> " << cell_val[q]
-//                << " "  << cell_lap[q]
-//                << " "  << cell_grad[q].norm_square()
-//                << "\n";
-
-      double v = cell_lap[q] - 0.5*sin(2.0*cell_val[q]);
-      I1 += v*v * fe_values.JxW(q);
+      I0 += fe_values.JxW(q);
+      double l1 = cell_grad[q].norm_square();
+      double l2 = cell_lap[q];
+      double v1 = 0.5*sin(2.0*cell_val[q]);
+      I1 += fe_values.JxW(q) * pow(l2 - v1,2);
     }
   }
-  return sqrt(I1);
+  // I0 is equal to Lx*Ly
+  // Something is still wrong with cell_lap!
+  return sqrt(I1/I0);
 }
 
 /*************************************************************************/
