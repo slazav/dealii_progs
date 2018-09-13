@@ -40,6 +40,7 @@ PolarSolver::PolarSolver(
      dofs(triang), fe(2), Lx(Lx_), Ly(Ly_), R(R_), bctype(bctype_) {
   deallog.depth_console(0);
   wave_nopot = false;
+  wave_symm = true;
 }
 
 PolarSolver::~PolarSolver() {
@@ -191,10 +192,10 @@ PolarSolver::save_grid(const char* fname){
 }
 void
 PolarSolver::save_data(const char* fname, const Vector<double> & data, int var,
-                       bool draw_mesh, bool draw_rot, bool wave_symm){
+                       bool draw_mesh, bool draw_rot){
   DataOutBase::EpsFlags eps_flags;
 
-
+  if (!draw_mesh) eps_flags.line_width = 0;
   eps_flags.z_scaling = 2./data.linfty_norm();
   eps_flags.draw_mesh = draw_mesh;
   if (draw_rot){
@@ -447,11 +448,13 @@ PolarSolver::get_amp(){
     fe_values.reinit(cell);
     fe_values.get_function_values(texture, cell_text);
     fe_values.get_function_values(wave, cell_wave);
+    // calculate integrals in four quadrants
     for (unsigned int q=0; q<nq; ++q){
       double wr = 2*cell_wave[q] * cos(-cell_text[q])
                 + 2*cell_wave[q] * cos(-M_PI+cell_text[q]);
       double wi = 2*cell_wave[q] * sin(-cell_text[q])
                 + 2*cell_wave[q] * sin(-M_PI+cell_text[q]);
+      if (!wave_symm) wr = wi = 0;
 
       I0 += 4*cell_wave[q]*cell_wave[q]*fe_values.JxW(q);
       I1 += wr*fe_values.JxW(q);
@@ -466,14 +469,15 @@ PolarSolver::get_amp(){
 /*************************************************************************/
 // do the wave calculations
 void
-PolarSolver::do_wave_calc(double en_, bool symmetric){
+PolarSolver::do_wave_calc(double en_, bool symm){
+  wave_symm = symm;
 
   // set wave constraints
   constraints.clear();
   DoFTools::make_hanging_node_constraints(dofs, constraints);
 
   // for antisymmetric waves BC at boundary 1
-  if (!symmetric)
+  if (!wave_symm)
     VectorTools::interpolate_boundary_values(
         dofs, 1, ZeroFunction<DIM>(), constraints);
 

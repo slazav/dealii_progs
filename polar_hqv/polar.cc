@@ -105,7 +105,7 @@ int main(int argc, char *argv[]){
 
     if (fname_w != NULL && strlen(fname_w)>0){
       std::cerr << "Saving wave to " << fname_w << "\n";
-      ps.save_wave(fname_w, wave_mesh, wave_rot, wave_symm);
+      ps.save_wave(fname_w, wave_mesh, wave_rot);
     }
 
     double amp = ps.get_amp();
