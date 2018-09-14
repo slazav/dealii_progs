@@ -5,5 +5,5 @@ My deal.II programs:
 
 How to build:
 - modify DEAL_II_DIR in CMakeLists.txt (folder with deal.II installation)
-- run cmake .
-- run make
+- run "cmake ."
+- run "make"
